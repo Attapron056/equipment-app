@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Equipment App</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing:border-box; font-family:system-ui,sans-serif; margin:0; padding:0; }
+    body { background:#f0f4f8; min-height:100vh; }
+    .header { background:#06c755; color:white; padding:16px 20px; font-size:18px; font-weight:700; }
+    .menu-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:20px; }
+    .menu-card { background:white; border-radius:14px; padding:24px 16px; text-align:center;
+      box-shadow:0 2px 8px rgba(0,0,0,0.08); cursor:pointer; transition:transform 0.15s; }
+    .menu-card:active { transform:scale(0.97); }
+    .menu-icon { font-size:32px; margin-bottom:10px; }
+    .menu-title { font-size:14px; font-weight:600; color:#333; }
+    .page { display:none; padding:20px; }
+    .page.active { display:block; }
+    .back-btn { background:none; border:none; font-size:14px; color:#06c755; cursor:pointer;
+      margin-bottom:16px; display:flex; align-items:center; gap:4px; font-weight:600; }
+    .form-group { margin-bottom:14px; }
+    .form-label { font-size:13px; font-weight:600; color:#555; margin-bottom:6px; display:block; }
+    select, input, textarea { width:100%; padding:10px 14px; border:1px solid #ddd;
+      border-radius:10px; font-size:14px; background:white; }
+    .submit-btn { width:100%; padding:14px; background:#06c755; color:white; border:none;
+      border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; margin-top:8px; }
+    .submit-btn:active { background:#05a847; }
+    .status-badge { display:inline-block; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .status-available { background:#e6f9ee; color:#06c755; }
+    .status-inuse { background:#fff3e0; color:#f57c00; }
+    .status-maintenance { background:#fce4ec; color:#e53935; }
+    #loading { text-align:center; padding:40px; color:#888; font-size:14px; }
+    #user-name { font-size:13px; opacity:0.85; margin-top:2px; }
+  
+</head>
+<body>
+
+<!-- หน้าหลัก -->
+<div id="page-home" class="page active">
+  <div class="header">
+    📷 Equipment App
+    <div id="user-name"></div>
+  </div>
+  <div class="menu-grid">
+    <div class="menu-card" onclick="showPage('borrow')">
+      <div class="menu-icon">📤</div>
+      <div class="menu-title">เบิกอุปกรณ์</div>
+    </div>
+    <div class="menu-card" onclick="showPage('return')">
+      <div class="menu-icon">📥</div>
+      <div class="menu-title">คืนอุปกรณ์</div>
+    </div>
+    <div class="menu-card" onclick="showPage('install')">
+      <div class="menu-icon">🔧</div>
+      <div class="menu-title">แจ้งติดตั้ง</div>
+    </div>
+    <div class="menu-card" onclick="showPage('repair')">
+      <div class="menu-icon">🛠</div>
+      <div class="menu-title">แจ้งซ่อม</div>
+    </div>
+    <div class="menu-card" onclick="showPage('status')" style="grid-column:span 2">
+      <div class="menu-icon">📋</div>
+      <div class="menu-title">ติดตามสถานะซ่อม</div>
+    </div>
+  </div>
+</div>
+
+<!-- หน้าเบิกอุปกรณ์ -->
+<div id="page-borrow" class="page">
+  <div class="header">📤 เบิกอุปกรณ์</div>
+  <div style="padding:20px">
+    <button class="back-btn" onclick="showPage('home')">← กลับ</button>
+    <div class="form-group">
+      <label class="form-label">ชื่อโครงการ</label>
+      <input id="b-project" type="text" placeholder="เช่น งานแต่งงาน สมชาย"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมวดหมู่อุปกรณ์</label>
+      <select id="b-category" onchange="filterEquipment()">
+        <option value="">-- เลือกหมวดหมู่ --</option>
+        <option>กล้อง</option><option>เลนส์</option>
+        <option>Tripod</option><option>Drone</option>
+        <option>Microphone</option><option>Light</option>
+        <option>Action Cam</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสอุปกรณ์</label>
+      <select id="b-equipment"><option>-- เลือกหมวดหมู่ก่อน --</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมายเหตุ</label>
+      <textarea id="b-note" rows="3" placeholder="ข้อมูลเพิ่มเติม (ถ้ามี)"></textarea>
+    </div>
+    <button class="submit-btn" onclick="submitBorrow()">✅ ยืนยันเบิกอุปกรณ์</button>
+  </div>
+</div>
+
+<!-- หน้าคืนอุปกรณ์ -->
+<div id="page-return" class="page">
+  <div class="header">📥 คืนอุปกรณ์</div>
+  <div style="padding:20px">
+    <button class="back-btn" onclick="showPage('home')">← กลับ</button>
+    <div class="form-group">
+      <label class="form-label">รหัสการเบิก (Borrow ID)</label>
+      <input id="r-borrowid" type="text" placeholder="เช่น BR1234567890"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รายงานการใช้งาน</label>
+      <textarea id="r-report" rows="3" placeholder="สภาพอุปกรณ์ หรือปัญหาที่พบ"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานที่เก็บ</label>
+      <input id="r-location" type="text" placeholder="เช่น ตู้ A ชั้น 2"/>
+    </div>
+    <button class="submit-btn" onclick="submitReturn()">✅ ยืนยันคืนอุปกรณ์</button>
+  </div>
+</div>
+
+<!-- หน้าแจ้งซ่อม -->
+<div id="page-repair" class="page">
+  <div class="header">🛠 แจ้งซ่อม</div>
+  <div style="padding:20px">
+    <button class="back-btn" onclick="showPage('home')">← กลับ</button>
+    <div class="form-group">
+      <label class="form-label">รหัสอุปกรณ์</label>
+      <input id="rep-id" type="text" placeholder="เช่น EQ001"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">อาการที่เสีย</label>
+      <textarea id="rep-symptom" rows="2" placeholder="อธิบายอาการ"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สาเหตุที่คาดว่า</label>
+      <textarea id="rep-cause" rows="2" placeholder="สาเหตุที่คาดว่าทำให้เสีย"></textarea>
+    </div>
+    <button class="submit-btn" onclick="submitRepair()">✅ ส่งแจ้งซ่อม</button>
+  </div>
+</div>
+
+<script>
+const 2009908351-ozImyDmw   = "YOUR_LIFF_ID";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycb.../exec";
+let allEquipment = [];
+let lineUserId   = "";
+
+// เริ่มต้น LIFF
+liff.init({ liffId: 2009908351-ozImyDmw}).then(async () => {
+  if (!liff.isLoggedIn()) { liff.login(); return; }
+  const profile = await liff.getProfile();
+  lineUserId = profile.userId;
+  document.getElementById("user-name").textContent = "สวัสดี " + profile.displayName;
+  loadEquipment();
+});
+
+// โหลดอุปกรณ์จาก Sheets
+async function loadEquipment() {
+  const res  = await fetch(WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "getEquipment" })
+  });
+  const json = await res.json();
+  allEquipment = json.data || [];
+}
+
+// กรองอุปกรณ์ตามหมวดหมู่
+function filterEquipment() {
+  const cat = document.getElementById("b-category").value;
+  const sel = document.getElementById("b-equipment");
+  const filtered = allEquipment.filter(e => e.category === cat && e.status === "Available");
+  sel.innerHTML = filtered.map(e =>
+    `<option value="${e.equipment_id}">${e.equipment_id} — ${e.name}</option>`
+  ).join("") || "<option>ไม่มีอุปกรณ์ว่าง</option>";
+}
+
+// ส่งข้อมูลเบิก
+async function submitBorrow() {
+  const data = {
+    action: "borrowEquipment",
+    lineUserId,
+    project:     document.getElementById("b-project").value,
+    equipmentId: document.getElementById("b-equipment").value,
+    note:        document.getElementById("b-note").value
+  };
+  const res = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(data) });
+  const json = await res.json();
+  if (json.success) { alert("เบิกสำเร็จ! รหัส: " + json.borrowId); showPage("home"); }
+  else { alert("เกิดข้อผิดพลาด กรุณาลองใหม่"); }
+}
+
+// ส่งข้อมูลคืน
+async function submitReturn() {
+  const data = {
+    action: "returnEquipment",
+    borrowId:        document.getElementById("r-borrowid").value,
+    report:          document.getElementById("r-report").value,
+    storageLocation: document.getElementById("r-location").value
+  };
+  const res  = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(data) });
+  const json = await res.json();
+  if (json.success) { alert("คืนสำเร็จ!"); showPage("home"); }
+  else { alert("เกิดข้อผิดพลาด กรุณาลองใหม่"); }
+}
+
+// ส่งข้อมูลแจ้งซ่อม
+async function submitRepair() {
+  const data = {
+    action: "reportRepair",
+    equipmentId: document.getElementById("rep-id").value,
+    symptom:     document.getElementById("rep-symptom").value,
+    cause:       document.getElementById("rep-cause").value
+  };
+  const res  = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(data) });
+  const json = await res.json();
+  if (json.success) { alert("แจ้งซ่อมสำเร็จ!"); showPage("home"); }
+  else { alert("เกิดข้อผิดพลาด กรุณาลองใหม่"); }
+}
+
+// สลับหน้า
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+}
+</script>
+</body></html>
