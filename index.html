@@ -1,0 +1,112 @@
+// ===== ตั้งค่าตรงนี้ก่อน =====
+const SPREADSHEET_ID = "YOUR_SPREADSHEET_ID";
+const MANAGER_EMAIL  = "YOUR_EMAIL@gmail.com";
+
+// ===== รับ Request จากแอป =====
+function doPost(e) {
+  const data   = JSON.parse(e.postData.contents);
+  const action = data.action;
+  if (action === "getEquipment")   return getEquipment();
+  if (action === "borrowEquipment") return borrowEquipment(data);
+  if (action === "returnEquipment") return returnEquipment(data);
+  if (action === "reportRepair")    return reportRepair(data);
+  return respond({ error: "Unknown action" });
+}
+
+// ดึงรายการอุปกรณ์ทั้งหมด
+function getEquipment() {
+  const sheet   = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Equipment");
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const result  = rows.slice(1).map(row => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    return obj;
+  });
+  return respond({ success: true, data: result });
+}
+
+// บันทึกการเบิกอุปกรณ์
+function borrowEquipment(data) {
+  const ss          = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const borrowSheet = ss.getSheetByName("Borrow");
+  const equipSheet  = ss.getSheetByName("Equipment");
+  const borrowId    = "BR" + Date.now();
+  borrowSheet.appendRow([
+    borrowId, data.lineUserId, data.project, data.equipmentId,
+    new Date().toLocaleDateString("th-TH"),
+    data.photoUrl || "", data.note || "", "Active"
+  ]);
+  const equipData = equipSheet.getDataRange().getValues();
+  for (let i = 1; i < equipData.length; i++) {
+    if (equipData[i][0] === data.equipmentId) {
+      equipSheet.getRange(i + 1, 5).setValue("In Use");
+      break;
+    }
+  }
+  GmailApp.sendEmail(
+    MANAGER_EMAIL,
+    "แจ้งเบิกอุปกรณ์: " + data.equipmentId,
+    "มีการเบิกอุปกรณ์ " + data.equipmentId + "\nโครงการ: " + data.project
+  );
+  return respond({ success: true, borrowId: borrowId });
+}
+
+// บันทึกการคืนอุปกรณ์
+function returnEquipment(data) {
+  const ss           = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const returnSheet  = ss.getSheetByName("Return");
+  const borrowSheet  = ss.getSheetByName("Borrow");
+  const equipSheet   = ss.getSheetByName("Equipment");
+  returnSheet.appendRow([
+    "RT" + Date.now(), data.borrowId,
+    new Date().toLocaleDateString("th-TH"),
+    data.photoUrl || "", data.report || "", data.storageLocation || ""
+  ]);
+  const borrowData = borrowSheet.getDataRange().getValues();
+  for (let i = 1; i < borrowData.length; i++) {
+    if (borrowData[i][0] === data.borrowId) {
+      borrowSheet.getRange(i + 1, 8).setValue("Returned");
+      const eqId   = borrowData[i][3];
+      const eqData = equipSheet.getDataRange().getValues();
+      for (let j = 1; j < eqData.length; j++) {
+        if (eqData[j][0] === eqId) {
+          equipSheet.getRange(j + 1, 5).setValue("Available");
+          break;
+        }
+      }
+      break;
+    }
+  }
+  return respond({ success: true });
+}
+
+// บันทึกการแจ้งซ่อม
+function reportRepair(data) {
+  const ss          = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const repairSheet = ss.getSheetByName("Repair");
+  const equipSheet  = ss.getSheetByName("Equipment");
+  repairSheet.appendRow([
+    "RP" + Date.now(), data.equipmentId,
+    data.symptom, data.cause,
+    "รออนุมัติซ่อม", "รออนุมัติ",
+    data.shop || "", data.photoUrl || ""
+  ]);
+  const eqData = equipSheet.getDataRange().getValues();
+  for (let i = 1; i < eqData.length; i++) {
+    if (eqData[i][0] === data.equipmentId) {
+      equipSheet.getRange(i + 1, 5).setValue("Maintenance");
+      break;
+    }
+  }
+  return respond({ success: true });
+}
+
+// Helper: ส่งผลลัพธ์กลับไปที่แอป
+function respond(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+✅ Copied!
